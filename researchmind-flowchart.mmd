@@ -1,0 +1,57 @@
+flowchart TD
+    Start([User opens ResearchMind]) --> Home{Choose Mode}
+
+    Home -->|Mode 1| DD[Deep Dive]
+    Home -->|Mode 2| TM[Topic Mastery]
+
+    %% ---------- MODE 1: DEEP DIVE ----------
+    DD --> Input1[/Paste paper title or arXiv link/]
+    Input1 --> Scrape1[Scraper Agent<br/>pdfplumber + BeautifulSoup]
+    Scrape1 --> Explain[Explainer Agent<br/>GPT-4o breakdown]
+    Explain --> Sections[Section-by-section explainer<br/>mastered terms highlighted]
+    Sections --> Chat[3-Mode Chat<br/>Standard / Socratic / Devil's Advocate]
+    Chat --> Export
+
+    %% ---------- MODE 2: TOPIC MASTERY ----------
+    TM --> Input2[/Enter a topic/]
+    Input2 --> Diag[Diagnostic Agent<br/>5-question calibration]
+    Diag --> Disc[Discovery Agent<br/>finds relevant papers]
+    Disc --> Graph[Graph Builder Agent<br/>builds knowledge graph]
+    Graph --> Scrape2[Scraper Agent<br/>fetches prerequisites]
+    Scrape2 --> QuizGen[Quiz Gen Agent<br/>GPT-4o questions]
+
+    QuizGen --> KG[Interactive Knowledge Graph<br/>mastered vs. pending concepts]
+    KG --> CQ{Confidence Quiz<br/>70% pass gate?}
+    CQ -->|Fail| Prereq[Prerequisites Panel<br/>YouTube + key concepts]
+    Prereq --> KG
+    CQ -->|Pass| SR[Spaced Repetition<br/>review scheduling]
+    SR --> Export
+
+    %% ---------- SHARED OUTPUT ----------
+    Export[PDF Export<br/>full session compiled]
+    Export --> End([Mastery achieved])
+
+    %% ---------- INFRA NOTE ----------
+    subgraph Backend [Backend: FastAPI + LangGraph orchestration]
+        Diag
+        Disc
+        Graph
+        Scrape2
+        QuizGen
+    end
+
+    Qdrant[(Qdrant<br/>vector search)] -.retrieval.- Backend
+    SSE[/Live progress streamed via SSE/] -.real-time updates.- Backend
+
+    %% ---------- STYLING ----------
+    classDef mode1 fill:#2563eb,stroke:#1e40af,color:#fff
+    classDef mode2 fill:#7c3aed,stroke:#5b21b6,color:#fff
+    classDef agent fill:#059669,stroke:#047857,color:#fff
+    classDef decision fill:#dc2626,stroke:#991b1b,color:#fff
+    classDef infra fill:#475569,stroke:#334155,color:#fff
+
+    class DD,Input1,Scrape1,Explain,Sections,Chat mode1
+    class TM,Input2,KG,SR mode2
+    class Diag,Disc,Graph,Scrape2,QuizGen agent
+    class Home,CQ decision
+    class Qdrant,SSE,Export infra
