@@ -26,6 +26,42 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.tableofcontents import TableOfContents
 
+
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.fonts import addMapping
+
+# ── Unicode fonts ─────────────────────────────────────────────────────────────
+# Helvetica/Courier only cover Latin-1, so symbols like ‑ − ≈ α √ came out as ■.
+# DejaVu (installed in the Docker image) covers them; reportlab's bundled Vera
+# is the fallback so the export never crashes.
+def _register_fonts() -> tuple[str, str, str, str, str]:
+    import reportlab
+    dejavu = Path("/usr/share/fonts/truetype/dejavu")
+    vera   = Path(reportlab.__file__).parent / "fonts"
+    if (dejavu / "DejaVuSans.ttf").exists():
+        files = {"RM": dejavu / "DejaVuSans.ttf", "RM-B": dejavu / "DejaVuSans-Bold.ttf",
+                 "RM-I": dejavu / "DejaVuSans-Oblique.ttf", "RM-BI": dejavu / "DejaVuSans-BoldOblique.ttf"}
+    else:
+        files = {"RM": vera / "Vera.ttf", "RM-B": vera / "VeraBd.ttf",
+                 "RM-I": vera / "VeraIt.ttf", "RM-BI": vera / "VeraBI.ttf"}
+    try:
+        for name, f in files.items():
+            pdfmetrics.registerFont(TTFont(name, str(f)))
+        addMapping("RM", 0, 0, "RM"); addMapping("RM", 1, 0, "RM-B")
+        addMapping("RM", 0, 1, "RM-I"); addMapping("RM", 1, 1, "RM-BI")
+        mono = "Courier"
+        if (dejavu / "DejaVuSansMono.ttf").exists():
+            pdfmetrics.registerFont(TTFont("RM-Mono", str(dejavu / "DejaVuSansMono.ttf")))
+            mono = "RM-Mono"
+        return "RM", "RM-B", "RM-I", "RM-BI", mono
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).warning("Font registration failed (%s); using Helvetica", e)
+        return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique", "Courier"
+
+
+FONT, FONT_B, FONT_I, FONT_BI, FONT_MONO = _register_fonts()
+
 from core.config import get_settings
 from core.models import SessionState
 
@@ -72,13 +108,13 @@ def _draw_page(canvas, doc):
     canvas.setLineWidth(0.7)
     canvas.line(LM, H - TM * 0.6, W - RM, H - TM * 0.6)
 
-    canvas.setFont("Helvetica", 7)
+    canvas.setFont(FONT, 7)
     canvas.setFillColor(C_MUTED)
     canvas.drawRightString(W - RM, H - TM * 0.46,
                            "ResearchMind  ·  Learning Session Export")
 
     canvas.line(LM, BM * 0.72, W - RM, BM * 0.72)
-    canvas.setFont("Helvetica-Bold", 8)
+    canvas.setFont(FONT_B, 8)
     canvas.setFillColor(C_NAVY)
     canvas.drawCentredString(W / 2, BM * 0.34, str(pg))
 
@@ -121,66 +157,66 @@ class _RMDoc(BaseDocTemplate):
 def _styles() -> dict:
     return {
         "cover_brand": ParagraphStyle("cover_brand",
-            fontSize=38, fontName="Helvetica-Bold", textColor=C_NAVY,
+            fontSize=38, fontName=FONT_B, textColor=C_NAVY,
             leading=42, spaceAfter=4),
         "cover_sub": ParagraphStyle("cover_sub",
-            fontSize=16, fontName="Helvetica", textColor=C_MUTED,
+            fontSize=16, fontName=FONT, textColor=C_MUTED,
             leading=22, spaceAfter=10),
         "cover_meta": ParagraphStyle("cover_meta",
-            fontSize=9.5, fontName="Courier", textColor=C_BODY,
+            fontSize=9.5, fontName=FONT_MONO, textColor=C_BODY,
             leading=15, spaceAfter=5),
         "cover_pct": ParagraphStyle("cover_pct",
-            fontSize=11, fontName="Helvetica-Bold", textColor=C_BLUE,
+            fontSize=11, fontName=FONT_B, textColor=C_BLUE,
             spaceAfter=4),
         "toc_title": ParagraphStyle("toc_title",
-            fontSize=20, fontName="Helvetica-Bold", textColor=C_NAVY,
+            fontSize=20, fontName=FONT_B, textColor=C_NAVY,
             spaceBefore=0, spaceAfter=14),
         # Tracked headings — names MUST match level_map in afterFlowable
         "rm_h1": ParagraphStyle("rm_h1",
-            fontSize=15, fontName="Helvetica-Bold", textColor=C_NAVY,
+            fontSize=15, fontName=FONT_B, textColor=C_NAVY,
             spaceBefore=24, spaceAfter=4, leading=19),
         "rm_h2": ParagraphStyle("rm_h2",
-            fontSize=12, fontName="Helvetica-Bold", textColor=C_BLUE,
+            fontSize=12, fontName=FONT_B, textColor=C_BLUE,
             spaceBefore=14, spaceAfter=3, leading=15, leftIndent=10),
         "rm_h3": ParagraphStyle("rm_h3",
-            fontSize=10.5, fontName="Helvetica-Bold", textColor=C_VIOLET,
+            fontSize=10.5, fontName=FONT_B, textColor=C_VIOLET,
             spaceBefore=9, spaceAfter=3, leading=13, leftIndent=22),
         "body": ParagraphStyle("body",
-            fontSize=9.5, fontName="Helvetica", textColor=C_BODY,
+            fontSize=9.5, fontName=FONT, textColor=C_BODY,
             leading=15, spaceAfter=4),
         "body_sm": ParagraphStyle("body_sm",
-            fontSize=8.5, fontName="Helvetica", textColor=C_BODY,
+            fontSize=8.5, fontName=FONT, textColor=C_BODY,
             leading=13, spaceAfter=3),
         "mono": ParagraphStyle("mono",
-            fontSize=8.5, fontName="Courier", textColor=C_MUTED,
+            fontSize=8.5, fontName=FONT_MONO, textColor=C_MUTED,
             leading=13, spaceAfter=3),
         "caption": ParagraphStyle("caption",
-            fontSize=8, fontName="Helvetica-Oblique", textColor=C_MUTED,
+            fontSize=8, fontName=FONT_I, textColor=C_MUTED,
             leading=12, spaceAfter=5),
         "chat_q": ParagraphStyle("chat_q",
-            fontSize=9.5, fontName="Helvetica-Bold", textColor=C_NAVY,
+            fontSize=9.5, fontName=FONT_B, textColor=C_NAVY,
             leading=14, spaceAfter=2),
         "chat_a": ParagraphStyle("chat_a",
-            fontSize=9.5, fontName="Helvetica", textColor=C_BODY,
+            fontSize=9.5, fontName=FONT, textColor=C_BODY,
             leading=15, spaceAfter=10, leftIndent=14),
         # Explanation markdown styles
         "expl_h2": ParagraphStyle("expl_h2",
-            fontSize=10, fontName="Helvetica-Bold", textColor=C_BLUE,
+            fontSize=10, fontName=FONT_B, textColor=C_BLUE,
             spaceBefore=10, spaceAfter=3, leading=13, leftIndent=12),
         "expl_h3": ParagraphStyle("expl_h3",
-            fontSize=9.5, fontName="Helvetica-Bold", textColor=C_VIOLET,
+            fontSize=9.5, fontName=FONT_B, textColor=C_VIOLET,
             spaceBefore=7, spaceAfter=2, leading=12, leftIndent=24),
         "expl_body": ParagraphStyle("expl_body",
-            fontSize=9.5, fontName="Helvetica", textColor=C_BODY,
+            fontSize=9.5, fontName=FONT, textColor=C_BODY,
             leading=15, spaceAfter=4, leftIndent=12),
         "expl_bullet": ParagraphStyle("expl_bullet",
-            fontSize=9.5, fontName="Helvetica", textColor=C_BODY,
+            fontSize=9.5, fontName=FONT, textColor=C_BODY,
             leading=15, spaceAfter=3, leftIndent=26, firstLineIndent=-14),
         "expl_quote": ParagraphStyle("expl_quote",
-            fontSize=9.0, fontName="Helvetica-Oblique", textColor=C_MUTED,
+            fontSize=9.0, fontName=FONT_I, textColor=C_MUTED,
             leading=13, spaceAfter=4, leftIndent=30),
         "expl_code": ParagraphStyle("expl_code",
-            fontSize=8.5, fontName="Courier", textColor=C_BODY,
+            fontSize=8.5, fontName=FONT_MONO, textColor=C_BODY,
             leading=13, spaceAfter=4, leftIndent=22, backColor=colors.HexColor("#f1f5f9")),
     }
 
@@ -198,8 +234,8 @@ def _section_rule(col=C_NAVY):
 def _meta_table(rows: list, doc_width: float) -> Table:
     t = Table(rows, colWidths=[4.0 * cm, doc_width - 4.0 * cm])
     t.setStyle(TableStyle([
-        ("FONTNAME",       (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME",       (1, 0), (1, -1), "Helvetica"),
+        ("FONTNAME",       (0, 0), (0, -1), FONT_B),
+        ("FONTNAME",       (1, 0), (1, -1), FONT),
         ("FONTSIZE",       (0, 0), (-1, -1), 9),
         ("TEXTCOLOR",      (0, 0), (0, -1), C_MUTED),
         ("TEXTCOLOR",      (1, 0), (1, -1), C_BODY),
@@ -229,13 +265,191 @@ _EXPL_SECTION_ORDER = [
 ]
 
 
-def _md_inline(raw: str) -> str:
-    """Escape XML special chars then convert inline markdown to ReportLab markup."""
-    text = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    text = re.sub(r"\*([^*\n]+?)\*", r"<i>\1</i>", text)
-    text = re.sub(r"`([^`\n]+?)`", r'<font face="Courier" fontSize="8">\1</font>', text)
+_CHAR_FIX = {
+    "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u00ad": "", "\u200b": "",
+    "\u00a0": " ", "\u202f": " ", "\u2009": " ", "\u2007": " ",
+}
+
+
+def _clean(text: str) -> str:
+    for a, b in _CHAR_FIX.items():
+        text = text.replace(a, b)
     return text
+
+
+def _esc(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+_GREEK = {n: c for n, c in zip(
+    "alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi "
+    "pi rho sigma tau upsilon phi varphi chi psi omega Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi Omega".split(),
+    "αβγδεεζηθϑικλμνξπρστυφφχψωΓΔΘΛΞΠΣΦΨΩ")}
+_SYM = {
+    **_GREEK,
+    "times": "×", "cdot": "·", "approx": "≈", "sim": "~", "leq": "≤", "le": "≤", "geq": "≥", "ge": "≥",
+    "neq": "≠", "ne": "≠", "infty": "∞", "to": "→", "rightarrow": "→", "leftarrow": "←",
+    "Rightarrow": "⇒", "in": "∈", "notin": "∉", "subset": "⊂", "sum": "Σ", "prod": "∏",
+    "partial": "∂", "nabla": "∇", "pm": "±", "ldots": "…", "dots": "…", "cdots": "⋯",
+    "top": "T", "prime": "′", "mid": "|", "propto": "∝", "forall": "∀", "exists": "∃",
+    "odot": "⊙", "oplus": "⊕", "otimes": "⊗", "circ": "∘", "ell": "ℓ", "star": "*",
+    "langle": "⟨", "rangle": "⟩", "lVert": "‖", "rVert": "‖", "|": "‖", "%": "%",
+    "{": "{", "}": "}", "_": "_", "$": "$", "#": "#", "&": "&",
+    "log": "log", "exp": "exp", "max": "max", "min": "min", "sin": "sin", "cos": "cos",
+    "tanh": "tanh", "arg": "arg", "argmax": "argmax", "argmin": "argmin", "lim": "lim",
+}
+_DROP_WRAP = {"mathbf", "mathcal", "mathrm", "mathit", "mathsf", "boldsymbol", "bm", "text",
+              "textbf", "textit", "textrm", "operatorname", "mbox", "mathtt", "emph"}
+_SKIP = {"left", "right", "bigl", "bigr", "Bigl", "Bigr", "big", "Big", "bigg", "Bigg",
+         "displaystyle", "textstyle", "limits", "nolimits", "!"}
+_SPACE = {",", ";", ":", " ", "quad", "qquad"}
+_BB = {"R": "ℝ", "N": "ℕ", "Z": "ℤ", "Q": "ℚ", "C": "ℂ", "E": "𝔼"}
+_ACCENT = {"hat": "\u0302", "tilde": "\u0303", "bar": "\u0304", "vec": "\u20d7", "dot": "\u0307"}
+
+
+def _group(s: str, i: int) -> tuple[str, int]:
+    """Return the next LaTeX argument (braced group, command, or char) and the new index."""
+    while i < len(s) and s[i] == " ":
+        i += 1
+    if i >= len(s):
+        return "", i
+    if s[i] == "{":
+        depth, j = 0, i
+        while j < len(s):
+            if s[j] == "{":
+                depth += 1
+            elif s[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    return s[i + 1:j], j + 1
+            j += 1
+        return s[i + 1:], len(s)
+    if s[i] == "\\":
+        m = re.match(r"\\([A-Za-z]+|.)", s[i:])
+        return m.group(0), i + len(m.group(0))
+    return s[i], i + 1
+
+
+def _latex(s: str) -> str:
+    """Convert a LaTeX math snippet to readable ReportLab markup (Unicode + sub/superscripts)."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c == "\\":
+            m = re.match(r"\\([A-Za-z]+|.)", s[i:])
+            if not m:
+                i += 1
+                continue
+            name = m.group(1)
+            i += len(m.group(0))
+            if name in _DROP_WRAP:
+                arg, i = _group(s, i)
+                out.append(_latex(arg))
+            elif name in ("frac", "dfrac", "tfrac"):
+                a, i = _group(s, i)
+                b, i = _group(s, i)
+                a, b = _latex(a), _latex(b)
+                wrap = lambda x: x if re.fullmatch(r"[\w.]+", re.sub(r"<[^>]+>", "", x)) else f"({x})"
+                out.append(f"{wrap(a)}/{wrap(b)}")
+            elif name == "sqrt":
+                a, i = _group(s, i)
+                a = _latex(a)
+                out.append(f"√{a}" if len(re.sub(r'<[^>]+>', '', a)) <= 2 else f"√({a})")
+            elif name == "mathbb":
+                a, i = _group(s, i)
+                out.append(_BB.get(a.strip(), _esc(a)))
+            elif name in _ACCENT:
+                a, i = _group(s, i)
+                out.append(_latex(a) + _ACCENT[name])
+            elif name in _SKIP:
+                continue
+            elif name in _SPACE:
+                out.append(" ")
+            elif name in _SYM:
+                out.append(_esc(_SYM[name]))
+            else:
+                out.append(_esc(name))
+        elif c in "^_":
+            arg, i = _group(s, i + 1)
+            inner = _latex(arg)
+            tag = "super" if c == "^" else "sub"
+            out.append(f"<{tag}>{inner}</{tag}>")
+        elif c in "{}$":
+            i += 1
+        elif c == "~":
+            out.append(" ")
+            i += 1
+        else:
+            out.append(_esc(c))
+            i += 1
+    return re.sub(r"\s{2,}", " ", "".join(out)).strip()
+
+
+_MATH_RE = re.compile(r"\$\$(.+?)\$\$|\\\((.+?)\\\)|\\\[(.+?)\\\]|(?<![\\\w])\$(?!\s)([^$\n]+?)(?<![\s\\])\$(?!\d)")
+_BARE_LATEX = re.compile(r"\\(mathbf|mathcal|mathbb|frac|operatorname|sqrt|sum|alpha|beta|theta|sigma|lambda|top|text)\b")
+
+
+def _md_inline(raw: str) -> str:
+    """Escape XML, render $math$, then convert inline markdown to ReportLab markup."""
+    raw = _clean(raw)
+    # A whole line of bare LaTeX (no $ delimiters) — render it as math.
+    if "$" not in raw and _BARE_LATEX.search(raw) and not re.search(r"[a-z]{4,} [a-z]{4,} [a-z]{4,}", raw):
+        return f"<i>{_latex(raw)}</i>"
+    parts: list[str] = []
+    last = 0
+    for m in _MATH_RE.finditer(raw):
+        parts.append(_md_text(raw[last:m.start()]))
+        math = next(g for g in m.groups() if g is not None)
+        parts.append(f"<i>{_latex(math)}</i>")
+        last = m.end()
+    parts.append(_md_text(raw[last:]))
+    return "".join(parts)
+
+
+def _md_text(raw: str) -> str:
+    text = _esc(raw)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"(?<![\w*])\*([^*\n]+?)\*(?!\w)", r"<i>\1</i>", text)
+    text = re.sub(r"`([^`\n]+?)`", rf'<font face="{FONT_MONO}" size="8">\1</font>', text)
+    return text
+
+
+_CONTENT_W = W - LM - RM
+
+
+def _md_table(rows: list[list[str]], S: dict) -> Table:
+    """Render markdown table rows as a real, wrapped, striped table."""
+    ncols = max(len(r) for r in rows)
+    rows = [r + [""] * (ncols - len(r)) for r in rows]
+    head = ParagraphStyle("tbl_h", parent=S["expl_body"], fontName=FONT_B, fontSize=8.5,
+                          leading=11, textColor=C_WHITE, spaceBefore=0, spaceAfter=0)
+    cell = ParagraphStyle("tbl_c", parent=S["expl_body"], fontSize=8.5, leading=11,
+                          spaceBefore=0, spaceAfter=0, leftIndent=0, firstLineIndent=0)
+    data = [[Paragraph(_md_inline(c), head if r == 0 else cell) for c in row]
+            for r, row in enumerate(rows)]
+    # wider columns for longer text
+    lens = [max(len(rows[r][c]) for r in range(len(rows))) + 8 for c in range(ncols)]
+    tot = sum(lens)
+    widths = [max(2.0 * cm, _CONTENT_W * l / tot) for l in lens]
+    scale = _CONTENT_W / sum(widths)
+    widths = [w * scale for w in widths]
+    t = Table(data, colWidths=widths, repeatRows=1, hAlign="LEFT")
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), C_HDR_BG),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [C_ROW_B, C_ROW_A]),
+        ("GRID", (0, 0), (-1, -1), 0.4, C_RULE),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return t
+
+
+def _math_block(math: str, S: dict) -> Paragraph:
+    style = ParagraphStyle("mathblk", parent=S["expl_body"], alignment=1,
+                           fontName=FONT_I, fontSize=10, leading=15, spaceBefore=4, spaceAfter=6)
+    return Paragraph(_latex(_clean(math)), style)
 
 
 def _markdown_to_story(md_text: str, S: dict) -> list:
@@ -249,7 +463,6 @@ def _markdown_to_story(md_text: str, S: dict) -> list:
         line = lines[i]
         stripped = line.strip()
 
-        # Empty line
         if not stripped:
             blank_streak += 1
             if blank_streak == 1:
@@ -258,101 +471,76 @@ def _markdown_to_story(md_text: str, S: dict) -> list:
             continue
         blank_streak = 0
 
-        # Horizontal rule
-        if re.match(r"^[-*]{3,}$", stripped):
+        if re.match(r"^[-*_]{3,}$", stripped):
             flowables.append(_hr(C_RULE, thick=0.4, before=3, after=5))
             i += 1
             continue
 
-        # H2: ## heading
-        if stripped.startswith("## "):
-            flowables.append(Paragraph(_md_inline(stripped[3:]), S["expl_h2"]))
+        m = re.match(r"^(#{1,6})\s+(.+)", stripped)
+        if m:
+            style = S["expl_h2"] if len(m.group(1)) <= 2 else S["expl_h3"]
+            flowables.append(Paragraph(_md_inline(m.group(2)), style))
             i += 1
             continue
 
-        # H3: ### heading
-        if stripped.startswith("### "):
-            flowables.append(Paragraph(_md_inline(stripped[4:]), S["expl_h3"]))
+        if stripped.startswith(">"):
+            flowables.append(Paragraph(_md_inline(stripped.lstrip("> ")), S["expl_quote"]))
             i += 1
             continue
 
-        # H1: # (treat as H2 within explanation context)
-        if re.match(r"^#[^#]", stripped):
-            flowables.append(Paragraph(_md_inline(stripped[2:]), S["expl_h2"]))
-            i += 1
-            continue
-
-        # Blockquote: > text
-        if stripped.startswith("> "):
-            flowables.append(Paragraph(_md_inline(stripped[2:]), S["expl_quote"]))
-            i += 1
-            continue
-
-        # Table rows: | col | col |
+        # Markdown table: collect consecutive | rows
         if stripped.startswith("|"):
-            # Skip separator rows like |---|---|
-            if re.match(r"^[\|\-\s:]+$", stripped):
+            rows: list[list[str]] = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = lines[i].strip()
+                if not re.match(r"^[\|\-\s:]+$", row):
+                    rows.append([c.strip() for c in row.strip("|").split("|")])
                 i += 1
-                continue
-            cells = [c.strip() for c in stripped.split("|") if c.strip()]
-            if cells:
-                flowables.append(Paragraph(_md_inline("  ·  ".join(cells)), S["expl_body"]))
-            i += 1
+            if rows:
+                flowables.append(Spacer(1, 0.1 * cm))
+                flowables.append(_md_table(rows, S))
+                flowables.append(Spacer(1, 0.2 * cm))
             continue
 
-        # Display math block: $$ ... $$
-        if stripped.startswith("$$"):
-            math_lines: list[str] = []
-            # Single-line: $$math$$
-            if stripped.endswith("$$") and len(stripped) > 4:
-                math = stripped[2:-2].strip()
-                safe = math.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                flowables.append(Paragraph(
-                    f'<font face="Courier" fontSize="8.5">{safe}</font>', S["expl_body"]
-                ))
+        # Display math: $$...$$ or \[...\] (single or multi-line)
+        if stripped.startswith("$$") or stripped.startswith("\\["):
+            close = "$$" if stripped.startswith("$$") else "\\]"
+            body = stripped[2:]
+            if body.rstrip().endswith(close):
+                flowables.append(_math_block(body.rstrip()[:-2], S))
                 i += 1
                 continue
-            # Multi-line: $$ \n ... \n $$
+            parts = [body]
             i += 1
             while i < len(lines):
                 l = lines[i].strip()
-                if l == "$$":
-                    i += 1
-                    break
-                math_lines.append(l)
                 i += 1
-            math = " ".join(math_lines)
-            safe = math.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            flowables.append(Paragraph(
-                f'<font face="Courier" fontSize="8.5">{safe}</font>', S["expl_body"]
-            ))
+                if l.endswith(close):
+                    parts.append(l[:-2])
+                    break
+                parts.append(l)
+            flowables.append(_math_block(" ".join(parts), S))
             continue
 
-        # Numbered list item: 1. text
-        m = re.match(r"^(\d+)\.\s+(.+)", stripped)
+        m = re.match(r"^(\d+)[.)]\s+(.+)", stripped)
         if m:
-            num, content = m.group(1), m.group(2)
-            flowables.append(Paragraph(
-                f"{num}.  {_md_inline(content)}", S["expl_bullet"]
-            ))
+            indent = "    " if line.startswith("  ") else ""
+            flowables.append(Paragraph(f"{indent}{m.group(1)}.  {_md_inline(m.group(2))}", S["expl_bullet"]))
             i += 1
             continue
 
-        # Bullet: - text | * text | • text
+        if re.match(r"^\s{2,}[-*•]\s+", line):
+            content = re.sub(r"^\s+[-*•]\s+", "", line)
+            flowables.append(Paragraph(f"&nbsp;&nbsp;&nbsp;&nbsp;◦  {_md_inline(content)}", S["expl_bullet"]))
+            i += 1
+            continue
+
         m = re.match(r"^[-*•]\s+(.+)", stripped)
         if m:
             flowables.append(Paragraph(f"•  {_md_inline(m.group(1))}", S["expl_bullet"]))
             i += 1
             continue
 
-        # Indented sub-bullet
-        if re.match(r"^\s{2,}[-*•]\s+", line):
-            content = re.sub(r"^\s+[-*•]\s+", "", line)
-            flowables.append(Paragraph(f"    ◦  {_md_inline(content)}", S["expl_bullet"]))
-            i += 1
-            continue
-
-        # Regular paragraph
         flowables.append(Paragraph(_md_inline(stripped), S["expl_body"]))
         i += 1
 
@@ -433,11 +621,11 @@ def export_session_pdf(session: SessionState) -> Path:
     toc = TableOfContents()
     toc.dotsMinLevel = 0
     toc.levelStyles  = [
-        ParagraphStyle("toc0", fontName="Helvetica-Bold", fontSize=11,
+        ParagraphStyle("toc0", fontName=FONT_B, fontSize=11,
             textColor=C_NAVY, spaceBefore=8, spaceAfter=1, leading=15, leftIndent=0),
-        ParagraphStyle("toc1", fontName="Helvetica", fontSize=9.5,
+        ParagraphStyle("toc1", fontName=FONT, fontSize=9.5,
             textColor=C_BLUE, spaceBefore=3, spaceAfter=1, leading=13, leftIndent=18),
-        ParagraphStyle("toc2", fontName="Helvetica", fontSize=8.5,
+        ParagraphStyle("toc2", fontName=FONT, fontSize=8.5,
             textColor=C_MUTED, spaceBefore=2, spaceAfter=0, leading=12, leftIndent=36),
     ]
     story.append(toc)
@@ -483,7 +671,7 @@ def export_session_pdf(session: SessionState) -> Path:
         at.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1,  0), C_HDR_BG),
             ("TEXTCOLOR",     (0, 0), (-1,  0), C_WHITE),
-            ("FONTNAME",      (0, 0), (-1,  0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 0), (-1,  0), FONT_B),
             ("FONTSIZE",      (0, 0), (-1, -1), 9),
             ("ROWBACKGROUNDS",(0, 1), (-1, -1), [C_ROW_A, C_ROW_B]),
             ("TEXTCOLOR",     (0, 1), (-1, -1), C_BODY),
@@ -567,7 +755,9 @@ def export_session_pdf(session: SessionState) -> Path:
                 continue
 
             paper = paper_lookup.get(paper_id)
-            paper_title = paper.title if paper else paper_id
+            if paper is None and session.papers and paper_id == session.session_id:
+                paper = session.papers[0]
+            paper_title = _clean(paper.title) if paper else (session.query or session.topic or "Paper")
 
             story.append(h2(paper_title))
             if paper and (paper.authors or paper.year):
@@ -669,7 +859,7 @@ def export_session_pdf(session: SessionState) -> Path:
     sr.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1,  0), C_HDR_BG),
         ("TEXTCOLOR",     (0, 0), (-1,  0), C_WHITE),
-        ("FONTNAME",      (0, 0), (-1,  0), "Helvetica-Bold"),
+        ("FONTNAME",      (0, 0), (-1,  0), FONT_B),
         ("FONTSIZE",      (0, 0), (-1, -1), 9),
         ("ROWBACKGROUNDS",(0, 1), (-1, -1), [C_ROW_A, C_ROW_B]),
         ("TEXTCOLOR",     (0, 1), (-1, -1), C_BODY),
