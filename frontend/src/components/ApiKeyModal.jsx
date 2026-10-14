@@ -44,10 +44,10 @@ export default function ApiKeyModal({ onClose }) {
         }}>🔑</div>
 
         <h2 style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>
-          Enter your OpenAI API Key
+          Enter your Gemini API Key
         </h2>
         <p className="serifi" style={{ color: "var(--mu)", fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
-          ResearchMind uses OpenAI to power its AI agents. Your key is stored
+          ResearchMind uses Google Gemini to power its AI agents. Your key is stored
           only in your browser and is sent directly to the backend — we never
           store or log it on our servers.
         </p>
@@ -57,7 +57,7 @@ export default function ApiKeyModal({ onClose }) {
           <input
             className="inp"
             type={visible ? "text" : "password"}
-            placeholder="sk-proj-..."
+            placeholder="AIza..."
             value={input}
             onChange={e => { setInput(e.target.value); setError(""); }}
             onKeyDown={e => e.key === "Enter" && save()}
@@ -80,13 +80,13 @@ export default function ApiKeyModal({ onClose }) {
         )}
 
         <a
-          href="https://platform.openai.com/api-keys"
+          href="https://aistudio.google.com/app/apikey"
           target="_blank"
           rel="noreferrer"
           className="mono"
           style={{ fontSize: 11, color: "var(--az)", display: "block", marginBottom: 20 }}
         >
-          Get a key at platform.openai.com/api-keys →
+          Get a free key at aistudio.google.com →
         </a>
 
         {/* Actions */}
@@ -109,7 +109,7 @@ export default function ApiKeyModal({ onClose }) {
         </div>
 
         <p className="mono" style={{ fontSize: 10, color: "var(--mu)", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
-          Your key is never sent to anyone except OpenAI's API.
+          Your key is never sent to anyone except Google's Gemini API.
           You can update it later via the ⚙ button on the home screen.
         </p>
       </div>
