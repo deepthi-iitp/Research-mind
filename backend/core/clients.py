@@ -21,8 +21,11 @@ cfg = get_settings()
 
 # Any OpenAI-compatible provider works by setting OPENAI_BASE_URL
 # (e.g. Gemini: https://generativelanguage.googleapis.com/v1beta/openai/).
-BASE_URL    = os.getenv("OPENAI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/") or None
-EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001")
+# Chat models: Groq (free, fast). Embeddings: Gemini (free) — only used for PDF uploads.
+BASE_URL       = os.getenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1") or None
+EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/") or None
+EMBED_API_KEY  = os.getenv("EMBED_API_KEY", "")   # Gemini key (AIza...)
+EMBED_MODEL    = os.getenv("EMBED_MODEL", "gemini-embedding-001")
 VECTOR_DIM  = int(os.getenv("EMBED_DIM", "1536"))
 
 # ── LLM clients ──────────────────────────────────────────────────────────────
@@ -74,13 +77,14 @@ class FittedEmbeddings(OpenAIEmbeddings):
 
 
 def get_embeddings() -> OpenAIEmbeddings:
-    key = _resolve_key()
+    key = EMBED_API_KEY or _resolve_key()
     return FittedEmbeddings(
         model=EMBED_MODEL,
         openai_api_key=key,
-        base_url=BASE_URL,
+        base_url=EMBED_BASE_URL,
         # non-OpenAI providers reject tiktoken token arrays
-        check_embedding_ctx_length=BASE_URL is None,
+        check_embedding_ctx_length=EMBED_BASE_URL is None,
+        max_retries=1,
     )
 
 
