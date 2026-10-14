@@ -14,8 +14,8 @@ export default function ApiKeyModal({ onClose }) {
 
   const save = () => {
     const trimmed = input.trim();
-    if (!trimmed.startsWith("sk-") && !trimmed.startsWith("AIza")) {
-      setError("Key should start with sk- (OpenAI) or AIza (Gemini)");
+    if (!trimmed.startsWith("gsk_")) {
+      setError("Groq keys start with gsk_");
       return;
     }
     setApiKey(trimmed);
