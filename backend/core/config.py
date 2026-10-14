@@ -19,8 +19,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 class Settings(BaseModel):
     # LLM
     openai_api_key: str        = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str          = os.getenv("OPENAI_MODEL",      "gemini-2.5-flash")
-    openai_fast_model: str     = os.getenv("OPENAI_FAST_MODEL", "gemini-2.5-flash")
+    openai_model: str          = os.getenv("OPENAI_MODEL",      "gemini-2.5-flash-lite")
+    openai_fast_model: str     = os.getenv("OPENAI_FAST_MODEL", "gemini-2.5-flash-lite")
 
     # Vector DB
     qdrant_url: str            = os.getenv("QDRANT_URL",        "http://localhost:6333")
