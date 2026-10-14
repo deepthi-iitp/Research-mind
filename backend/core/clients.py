@@ -45,7 +45,7 @@ def get_llm(fast: bool = False) -> ChatOpenAI:
     key = _resolve_key()
     model = cfg.openai_fast_model if fast else cfg.openai_model
     return ChatOpenAI(model=model, openai_api_key=key, base_url=BASE_URL,
-                      temperature=0.2, streaming=True)
+                      temperature=0.2, streaming=True, max_retries=5)
 
 
 def _fit(vec: list[float]) -> list[float]:
