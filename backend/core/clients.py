@@ -21,8 +21,8 @@ cfg = get_settings()
 
 # Any OpenAI-compatible provider works by setting OPENAI_BASE_URL
 # (e.g. Gemini: https://generativelanguage.googleapis.com/v1beta/openai/).
-BASE_URL    = os.getenv("OPENAI_BASE_URL") or None
-EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
+BASE_URL    = os.getenv("OPENAI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/") or None
+EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001")
 VECTOR_DIM  = int(os.getenv("EMBED_DIM", "1536"))
 
 # ── LLM clients ──────────────────────────────────────────────────────────────
