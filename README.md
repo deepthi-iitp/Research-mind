@@ -88,7 +88,7 @@ npm run dev
 
 ### 4. Open the app
 
-Visit **http://localhost:5173**
+Visit **https://research-mind-l6zx.onrender.com**
 
 ---
 
