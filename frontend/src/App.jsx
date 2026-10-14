@@ -49,7 +49,7 @@ export default function App() {
         {/* API key button */}
         <button
           onClick={() => setShowKeyModal(true)}
-          title={apiKey ? "Change OpenAI API key" : "Set OpenAI API key"}
+          title={apiKey ? "Change Gemini API key" : "Set Gemini API key"}
           style={{
             width: 36, height: 36, borderRadius: "50%",
             background: apiKey ? "#22d49a18" : "#ff6b8a18",
