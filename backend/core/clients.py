@@ -5,6 +5,8 @@ Single-instance objects reused across all agents.
 from __future__ import annotations
 
 import logging
+import math
+import os
 from functools import lru_cache  # still used by get_qdrant_client
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -17,10 +19,16 @@ from core.config import get_settings
 log = logging.getLogger(__name__)
 cfg = get_settings()
 
+# Any OpenAI-compatible provider works by setting OPENAI_BASE_URL
+# (e.g. Gemini: https://generativelanguage.googleapis.com/v1beta/openai/).
+BASE_URL    = os.getenv("OPENAI_BASE_URL") or None
+EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
+VECTOR_DIM  = int(os.getenv("EMBED_DIM", "1536"))
+
 # ── LLM clients ──────────────────────────────────────────────────────────────
 
 class MissingAPIKeyError(RuntimeError):
-    """Raised when neither the server nor the request supplies an OpenAI key."""
+    """Raised when neither the server nor the request supplies an API key."""
 
 
 def _resolve_key() -> str:
@@ -28,7 +36,7 @@ def _resolve_key() -> str:
     key = get_request_api_key() or cfg.openai_api_key
     if not key:
         raise MissingAPIKeyError(
-            "No OpenAI API key: set OPENAI_API_KEY on the server or add your key in the app."
+            "No API key: set OPENAI_API_KEY on the server or add your key in the app."
         )
     return key
 
@@ -36,18 +44,49 @@ def _resolve_key() -> str:
 def get_llm(fast: bool = False) -> ChatOpenAI:
     key = _resolve_key()
     model = cfg.openai_fast_model if fast else cfg.openai_model
-    return ChatOpenAI(model=model, openai_api_key=key, temperature=0.2, streaming=True)
+    return ChatOpenAI(model=model, openai_api_key=key, base_url=BASE_URL,
+                      temperature=0.2, streaming=True)
+
+
+def _fit(vec: list[float]) -> list[float]:
+    """Cut to VECTOR_DIM and re-normalise (gemini-embedding-001 returns 3072)."""
+    if len(vec) <= VECTOR_DIM:
+        return vec
+    v = vec[:VECTOR_DIM]
+    n = math.sqrt(sum(x * x for x in v)) or 1.0
+    return [x / n for x in v]
+
+
+class FittedEmbeddings(OpenAIEmbeddings):
+    """OpenAIEmbeddings that always returns VECTOR_DIM-sized vectors."""
+
+    def embed_documents(self, texts, chunk_size=None, **kw):
+        return [_fit(v) for v in super().embed_documents(texts, chunk_size, **kw)]
+
+    def embed_query(self, text, **kw):
+        return _fit(super().embed_query(text, **kw))
+
+    async def aembed_documents(self, texts, chunk_size=None, **kw):
+        return [_fit(v) for v in await super().aembed_documents(texts, chunk_size, **kw)]
+
+    async def aembed_query(self, text, **kw):
+        return _fit(await super().aembed_query(text, **kw))
 
 
 def get_embeddings() -> OpenAIEmbeddings:
     key = _resolve_key()
-    return OpenAIEmbeddings(openai_api_key=key)
+    return FittedEmbeddings(
+        model=EMBED_MODEL,
+        openai_api_key=key,
+        base_url=BASE_URL,
+        # non-OpenAI providers reject tiktoken token arrays
+        check_embedding_ctx_length=BASE_URL is None,
+    )
 
 
 # ── Vector store ─────────────────────────────────────────────────────────────
 
 COLLECTION = "researchmind_papers"
-VECTOR_DIM  = 1536   # text-embedding-ada-002 / text-embedding-3-small
 
 
 @lru_cache
@@ -81,6 +120,6 @@ def get_vectorstore(session_id: str) -> Qdrant:
     return Qdrant(
         client=get_qdrant_client(),
         collection_name=COLLECTION,
-        embeddings=get_embeddings(),
+        embedding=get_embeddings(),      # was `embeddings=` — that crashed RAG even with OpenAI
         metadata_payload_key="metadata",
     )
