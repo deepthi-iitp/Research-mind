@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from core.cache    import get_explain_cache, set_explain_cache
-from core.clients  import get_llm, get_vectorstore, get_embeddings
+from core.clients  import get_llm, get_vectorstore, get_embeddings, session_filter
 from core.config   import get_settings
 from core.database import upsert_record
 from core.models   import SessionState
@@ -583,14 +583,14 @@ async def explain_section_stream(
         docs = vs.similarity_search(
             f"{section_label} {title}: methods, equations, results",
             k=cfg.top_k,
-            filter={"session_id": session.session_id},
+            filter=session_filter(session.session_id),
         )
         rag_context = "\n\n---\n\n".join(
             f"[Page {d.metadata.get('page', '?')}]\n{d.page_content}"
             for d in docs
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("RAG retrieval failed for session %s: %s", session.session_id, e)
 
     # Select section-specific structure and header template
     if level == "expert":
@@ -626,8 +626,13 @@ async def explain_section_stream(
 
         user_content = (
             f"Explain the **{section_label}** section thoroughly.\n\n"
-            f"*(No PDF uploaded — draw on world knowledge about this paper/topic "
-            f"but flag any inferences with [Inferred: ...])*"
+            f"*(No PDF uploaded — draw on world knowledge about this exact paper "
+            f"(\"{title}\", {authors}, {year}).*\n\n"
+            f"STRICT RULES: Explain only this paper — never substitute a different paper. "
+            f"Do NOT invent quotes, numbers, table/figure references or p-values. "
+            f"Only put text in quotation marks if you are certain it is the paper's exact wording. "
+            f"If you do not reliably know this paper's details, say so in one line at the top, "
+            f"then explain the general concepts this section would cover and mark them [Inferred: ...].)*"
         )
 
     llm = get_llm()
@@ -708,10 +713,10 @@ async def answer_question(
     rag_context = ""
     try:
         vs = get_vectorstore(session.session_id)
-        docs = vs.similarity_search(question, k=cfg.top_k, filter={"session_id": session.session_id})
+        docs = vs.similarity_search(question, k=cfg.top_k, filter=session_filter(session.session_id))
         rag_context = "\n\n".join(d.page_content for d in docs)
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("RAG retrieval failed for session %s: %s", session.session_id, e)
 
     system = QA_SYSTEM.format(
         title=title, authors=authors, year=year, section=section,
