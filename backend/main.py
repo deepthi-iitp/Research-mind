@@ -26,7 +26,7 @@ from core.models  import (
 )
 from agents.pipeline      import stream_mode2_pipeline
 from agents.explainer_agent import explain_section, explain_section_stream, answer_question, ingest_pdf
-from agents.quiz_agent    import grade_quiz, analyse_weak_spots
+from agents.quiz_agent    import grade_quiz, analyse_weak_spots, adapt_quiz
 from agents.export_agent  import export_session_pdf
 from agents.discovery_agent import run_discovery_agent
 
@@ -323,12 +323,16 @@ async def submit_quiz(session_id: str, req: QuizSubmitRequest):
 
     session.quiz_result  = result
     session.overall_pct  = min(session.overall_pct + 10, 95) if result.passed else session.overall_pct
+
+    # Adaptive next round: difficulty follows the score, questions target weak concepts
+    next_round = await adapt_quiz(session, result, weak_spots)
     _SESSIONS[session_id] = session
 
     return {
-        "result":    result.model_dump(),
-        "weak_spots":weak_spots,
-        "passed":    result.passed,
+        "result":     result.model_dump(),
+        "weak_spots": weak_spots,
+        "passed":     result.passed,
+        **next_round,
     }
 
 
