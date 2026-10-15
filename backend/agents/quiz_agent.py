@@ -23,7 +23,7 @@ Generate exactly {n} multiple-choice questions to test whether a student
 understands the prerequisites and core concepts needed for: "{topic}".
 
 Calibrate difficulty to level: {level}  (beginner / intermediate / advanced).
-
+{focus_block}
 Return ONLY a JSON array:
 [
   {{
@@ -88,31 +88,92 @@ FALLBACK_QUESTIONS = [
 ]
 
 
-async def run_quiz_generator(state: SessionState, n_questions: int = 5) -> SessionState:
+LEVELS = ["beginner", "intermediate", "advanced"]
+
+
+def next_level(current: str, score_pct: int) -> str:
+    """Adaptive difficulty: step up after a strong round, step down after a weak one."""
+    i = LEVELS.index(current) if current in LEVELS else 1
+    if score_pct >= 80:
+        i = min(i + 1, len(LEVELS) - 1)
+    elif score_pct < 50:
+        i = max(i - 1, 0)
+    return LEVELS[i]
+
+
+async def run_quiz_generator(
+    state: SessionState,
+    n_questions: int = 5,
+    level: str | None = None,
+    focus_concepts: list[str] | None = None,
+    avoid_questions: list[str] | None = None,
+) -> SessionState:
     """
     Generates quiz questions tailored to the topic and student level.
+    In adaptive rounds, `focus_concepts` (weak spots from the last round) and
+    `avoid_questions` (already asked) steer the next set.
     Falls back to FALLBACK_QUESTIONS if LLM fails.
     """
-    topic  = state.topic or state.query
-    level  = state.user_profile.get("level", "intermediate")
+    topic = state.topic or state.query
+    level = level or state.user_profile.get("quiz_level") or state.user_profile.get("level", "intermediate")
+
+    focus_block = ""
+    if focus_concepts:
+        focus_block += (
+            f"\nThe student just got these concepts WRONG: {', '.join(focus_concepts)}.\n"
+            f"At least {min(3, n_questions)} questions must test these concepts from a new angle.\n"
+        )
+    if avoid_questions:
+        focus_block += "Do NOT repeat or rephrase these earlier questions:\n" + "\n".join(f"- {q}" for q in avoid_questions) + "\n"
 
     llm = get_llm(fast=True)
     messages = [
-        SystemMessage(content=GENERATE_SYSTEM.format(n=n_questions, topic=topic, level=level)),
+        SystemMessage(content=GENERATE_SYSTEM.format(n=n_questions, topic=topic, level=level, focus_block=focus_block)),
         HumanMessage(content=f"Generate {n_questions} quiz questions for topic: {topic}"),
     ]
 
     try:
         resp = await llm.ainvoke(messages)
         raw  = resp.content.strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`").removeprefix("json").strip()
         qs   = json.loads(raw)
         state.quiz_questions = [QuizQuestion(**q) for q in qs[:n_questions]]
     except Exception as e:
         log.warning("Quiz generator failed: %s — using fallback questions", e)
-        state.quiz_questions = FALLBACK_QUESTIONS[:n_questions]
+        if not avoid_questions:
+            state.quiz_questions = FALLBACK_QUESTIONS[:n_questions]
 
     state.agent_statuses["quiz"] = "done"
     return state
+
+
+async def adapt_quiz(state: SessionState, result: QuizResult, weak_spots: dict) -> dict:
+    """
+    Builds the next quiz round from the last one:
+      • difficulty moves up/down based on the score
+      • questions focus on the concepts the student got wrong
+      • questions already asked are not repeated
+    """
+    current = state.user_profile.get("quiz_level") or state.user_profile.get("level", "intermediate")
+    new_level = next_level(current, result.score_pct)
+    focus = (weak_spots or {}).get("weak_concepts") or []
+    asked = [q.q for q in state.quiz_questions]
+
+    history = state.user_profile.setdefault("quiz_history", [])
+    history.append({"round": len(history) + 1, "level": current, "score_pct": result.score_pct, "weak": focus})
+
+    previous = list(state.quiz_questions)
+    await run_quiz_generator(state, level=new_level, focus_concepts=focus, avoid_questions=asked)
+    if state.quiz_questions == previous:          # generation failed — keep the old round
+        return {"next_questions": [], "next_level": current, "focus_concepts": focus}
+
+    state.user_profile["quiz_level"] = new_level
+    return {
+        "next_questions": [q.model_dump() for q in state.quiz_questions],
+        "next_level":     new_level,
+        "focus_concepts": focus,
+    }
 
 
 def grade_quiz(questions: list[QuizQuestion], answers: list[int]) -> QuizResult:
@@ -153,6 +214,9 @@ async def analyse_weak_spots(
     ]
     try:
         resp = await llm.ainvoke(messages)
-        return json.loads(resp.content.strip())
+        raw = resp.content.strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`").removeprefix("json").strip()
+        return json.loads(raw)
     except Exception:
         return {"weak_concepts": [], "strong_concepts": [], "advice": "Review the incorrect questions above before proceeding."}
