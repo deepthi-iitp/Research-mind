@@ -27,7 +27,7 @@ SECTION_LABELS = {
     "abstract":   "Abstract",
     "intro":      "Introduction",
     "arch":       "Architecture",
-    "attention":  "Attention Mechanism",
+    "attention":  "Core Method",
     "training":   "Training Setup",
     "results":    "Results & Evaluation",
     "conclusion": "Conclusion & Future Work",
@@ -165,49 +165,38 @@ For each major module, create a sub-section:
 Target **800–1000 words**. Include all key equations.""",
 
     "attention": """\
+This section covers the paper's CORE TECHNICAL MECHANISM — the one new idea that makes the method work.
+Identify it from the paper itself (e.g. an attention or alignment module, a loss function, a fusion block,
+a sampling scheme, a graph operation). Do NOT assume it is Transformer attention unless the paper says so.
+
 Structure your response with these exact headers:
 
-## Formal Attention Definition
-- State the exact computation: inputs Q, K, V; the output; the full equation.
-- Define every symbol: tensor shapes, semantic meaning.
-- Intuitive interpretation: what does "attention score" measure semantically?
+## What the Core Mechanism Is
+- Name the mechanism exactly as the paper does and state in one sentence what problem it solves.
+- Where does it sit in the overall pipeline (inputs → this module → outputs)?
 
-## Scaled Dot-Product Attention: Step by Step
-- Step 1: Linear projections of Q, K, V — why project?
-- Step 2: Dot product QKᵀ — what does a high score mean?
-- Step 3: Scale by 1/√dₖ — derive why this is necessary.
-- Step 4: Softmax — what distribution does this produce?
-- Step 5: Weighted sum with V — what does the output represent?
+## Formal Definition
+- The exact computation with the full equation(s); define every symbol and tensor shape.
+- Intuitive interpretation of each term.
 
-## Multi-Head Attention
-- How are H independent heads computed in parallel?
-- What is the dimensionality at each stage?
-- What does each head theoretically learn to capture?
-- Concatenation + projection: purpose and dimensions.
+## Step-by-Step Computation
+- Walk through the computation in order, explaining WHY each step exists.
 
-## Self-Attention vs. Cross-Attention
-- What differs between these two uses of attention?
-- Where in the architecture is each used and why?
-- What masking is applied, where, and why?
-
-## Position Encoding
-- Why is explicit position encoding needed (attention is permutation-invariant)?
-- What encoding scheme is used? Derive or describe the formula.
-- Sinusoidal vs. learned: trade-offs.
+## Design Choices & Alternatives
+- What simpler or prior alternatives exist, and why did the authors choose this design?
+- What would break or degrade without it (cite the paper's ablation if available)?
 
 ## Computational Properties & Limits
-- Time complexity: O(n²·d) — why quadratic in sequence length?
-- Memory cost vs. RNNs.
-- Any efficient attention variants used?
+- Time / memory cost and how it scales; known limitations.
 
-Target **750–950 words**. Include all LaTeX equations with symbols defined.""",
+Target **750–950 words**. Include equations with every symbol defined.""",
 
     "training": """\
 Structure your response with these exact headers:
 
 ## Training Data & Preprocessing
 - Dataset name(s), size, domain, language(s).
-- Tokenization method and vocabulary size — what algorithm? What choices?
+- Input representation / preprocessing (tokenization, patching, normalisation — whatever applies).
 - Train/validation/test split sizes; any data augmentation.
 
 ## Objective Function
@@ -383,44 +372,27 @@ Map the full architecture onto something familiar. Be specific — name every pa
 Target **500–600 words**. Concrete examples in every section.""",
 
     "attention": """\
+This section covers the paper's CORE IDEA — the one new trick that makes the method work.
+Identify it from the paper itself; do NOT assume it is Transformer attention unless the paper says so.
+
 Structure your response with these exact headers:
 
-## What Does "Attention" Mean? (Start with the Everyday Concept)
-Begin with how humans pay attention — we focus on relevant parts and ignore the rest. Build from this to how a neural network can do the same. Use the analogy: "It's like a search engine built inside the model…"
+## The Core Idea in One Sentence
+Explain it the way you would to a friend, with an everyday analogy.
 
-## The Problem Attention Solves
-- What did older models (RNNs) struggle with? Give a concrete example:
-  - "The trophy doesn't fit in the suitcase because **it** is too big" — which word does "it" refer to?
-- Why is this hard for a step-by-step sequence model?
+## The Problem It Solves
+- What went wrong before this idea? Give one concrete example.
 
-## How Attention Works — Step by Step
-- **Step 1 — Ask a Question (Query)**: Each word asks "what information am I looking for?"
-- **Step 2 — Check Relevance (Keys)**: Every other word says "here is what I contain"
-- **Step 3 — Score & Weight**: How relevant is each word? High score = pay more attention
-- **Step 4 — Combine (Values)**: Blend information from all relevant words proportionally
-- **Step 5 — Multiple Heads**: Like having several people read the sentence, each looking for something different
+## How It Works — Step by Step
+- 3–5 simple steps, each with a plain-language explanation.
 
-## The Key Equation, Explained Symbol by Symbol
+## The Key Equation (if any), Explained Symbol by Symbol
+- Show the main equation from the paper and explain each symbol in plain words in a table.
 
-$$\\text{Attention}(Q, K, V) = \\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{d_k}}\\right)V$$
+## Why It Matters
+- What results improve because of it?
 
-| Symbol | What it means | Think of it as |
-|--------|---------------|----------------|
-| Q | Query matrix | "What am I looking for?" |
-| K | Key matrix | "What do I contain?" |
-| V | Value matrix | "What information do I carry?" |
-| √dₖ | Scaling factor | Prevents scores from exploding |
-| softmax | Normalizing function | Converts scores to percentages summing to 100% |
-
-## A Concrete Example in Action
-For the sentence: "The bank by the **river** was steep."
-When the model reads "bank" — which nearby words does it attend to most, and why does that help it pick the right meaning?
-
-## Why This Changed Everything
-- Bullet points: 2–3 specific things that became possible after attention that weren't before.
-- What tasks improved most and why?
-
-Target **500–620 words**. Build from intuition to formalism. Every symbol defined before use.""",
+Target **500–600 words**. Concrete examples in every section.""",
 
     "training": """\
 Structure your response with these exact headers:

@@ -254,7 +254,7 @@ _EXPL_SECTION_LABELS = {
     "abstract":   "Abstract",
     "intro":      "Introduction",
     "arch":       "Architecture",
-    "attention":  "Attention Mechanism",
+    "attention":  "Core Method",
     "training":   "Training Setup",
     "results":    "Results & Evaluation",
     "conclusion": "Conclusion & Future Work",
