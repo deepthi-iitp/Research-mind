@@ -12,7 +12,7 @@ from functools import lru_cache  # still used by get_qdrant_client
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore as Qdrant
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams
+from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, VectorParams
 
 from core.config import get_settings
 
@@ -116,6 +116,12 @@ def ensure_collection() -> None:
             collection_name=COLLECTION,
             vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
         )
+
+
+def session_filter(session_id: str) -> Filter:
+    """Qdrant filter restricting search to one session's uploaded PDF chunks."""
+    return Filter(must=[FieldCondition(key="metadata.session_id",
+                                       match=MatchValue(value=session_id))])
 
 
 def get_vectorstore(session_id: str) -> Qdrant:
