@@ -12,7 +12,7 @@ const SECTIONS = [
   { id: "abstract",   label: "Abstract",           icon: "§", desc: "Core problem, proposed solution & key claims" },
   { id: "intro",      label: "Introduction",        icon: "¶", desc: "Motivation, prior work & research gap" },
   { id: "arch",       label: "Architecture",        icon: "◧", desc: "Model components & design decisions" },
-  { id: "attention",  label: "Attention Mechanism", icon: "⊛", desc: "Attention math, multi-head & positional encoding" },
+  { id: "attention",  label: "Core Method",         icon: "⊛", desc: "The key mechanism that makes the method work" },
   { id: "training",   label: "Training",            icon: "⊙", desc: "Data, objective function & optimisation setup" },
   { id: "results",    label: "Results",             icon: "◈", desc: "Benchmarks, ablations & qualitative analysis" },
   { id: "conclusion", label: "Conclusion",          icon: "◉", desc: "Takeaways, limitations & future directions" },
