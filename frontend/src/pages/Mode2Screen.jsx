@@ -260,10 +260,27 @@ export default function Mode2Screen() {
     return () => es?.close();
   };
 
-  // ── Quiz complete ─────────────────────────────────────────────────────────
+  // ── Quiz complete (adaptive) ──────────────────────────────────────────────
+  const [weakSpots, setWeakSpots] = useState(null);
+  const [nextRound, setNextRound] = useState(null);
+  const [quizRound, setQuizRound] = useState(1);
+
   const handleQuizComplete = (result) => {
     setQuizResult(result.result || result);
     setOverallPct(result.result?.passed || result.passed ? 92 : 80);
+    setWeakSpots(result.weak_spots || null);
+    setNextRound(result.next_questions?.length
+      ? { questions: result.next_questions, level: result.next_level, focus: result.focus_concepts || [] }
+      : null);
+  };
+
+  const startNextRound = () => {
+    if (!nextRound) return;
+    setQuizQuestions(nextRound.questions);
+    setQuizResult(null);
+    setWeakSpots(null);
+    setNextRound(null);
+    setQuizRound(r => r + 1);
   };
 
   // ── Phases ────────────────────────────────────────────────────────────────
@@ -494,14 +511,30 @@ export default function Mode2Screen() {
                     <div style={{ fontSize:50,marginBottom:12}}>{quizPassed?"🏆":"🔄"}</div>
                     <div style={{ fontWeight:900,fontSize:26,marginBottom:8}}>{quizScore}%</div>
                     <Tag color={quizPassed?"#22d49a":"#ff6b8a"}>{quizPassed?"PASSED":"RETRY"}</Tag>
+                    {weakSpots?.weak_concepts?.length > 0 && (
+                      <div style={{ marginTop:14,textAlign:"left",fontSize:12.5,color:"var(--mu)"}}>
+                        <div style={{ fontWeight:700,color:"var(--tx)",marginBottom:6}}>Weak spots</div>
+                        <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+                          {weakSpots.weak_concepts.map(c => <Tag key={c} color="#ff6b8a">{c}</Tag>)}
+                        </div>
+                        {weakSpots.advice && <p className="serifi" style={{ lineHeight:1.5 }}>{weakSpots.advice}</p>}
+                      </div>
+                    )}
                     {quizPassed && (
                       <button className="btn be" onClick={()=>setMode2Phase("explainer")} style={{ marginTop:16,width:"100%",fontSize:13}}>
                         Start Paper Explainer →
                       </button>
                     )}
+                    {nextRound && (
+                      <button className="btn bg" onClick={startNextRound} style={{ marginTop:10,width:"100%",fontSize:12.5}}>
+                        {quizPassed ? "Try a harder round" : "Retry with adapted questions"} · {nextRound.level}
+                        {nextRound.focus.length > 0 && ` · focus: ${nextRound.focus.slice(0,2).join(", ")}`}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <ConfidenceQuiz
+                    key={quizRound}
                     questions={quizQuestions.length ? quizQuestions : null}
                     onComplete={handleQuizComplete}
                   />
