@@ -10,6 +10,7 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.llm_json import parse_llm_json
 from core.clients import get_llm
 from core.models import QuizQuestion, QuizResult, SessionState
 from core.config import get_settings
@@ -29,7 +30,7 @@ Return ONLY a JSON array:
   {{
     "q":       "Question text?",
     "opts":    ["Option A", "Option B", "Option C", "Option D"],
-    "correct": 0,   // 0-indexed
+    "correct": 0
     "explain": "One-sentence explanation of the correct answer."
   }},
   ...
@@ -39,7 +40,8 @@ Rules:
 - Mix conceptual understanding, applied reasoning, and "why" questions
 - Wrong options must be plausible (no obviously silly distractors)
 - Questions should be self-contained — no "according to the paper" phrasing
-- Return ONLY the JSON array, no markdown, no preamble
+- "correct" is the 0-based index of the right option
+- Return ONLY the JSON array, no markdown, no comments, no preamble
 """
 
 GRADE_SYSTEM = """You are ResearchMind's Quiz Grader.
@@ -126,22 +128,27 @@ async def run_quiz_generator(
     if avoid_questions:
         focus_block += "Do NOT repeat or rephrase these earlier questions:\n" + "\n".join(f"- {q}" for q in avoid_questions) + "\n"
 
-    llm = get_llm(fast=True)
     messages = [
         SystemMessage(content=GENERATE_SYSTEM.format(n=n_questions, topic=topic, level=level, focus_block=focus_block)),
         HumanMessage(content=f"Generate {n_questions} quiz questions for topic: {topic}"),
     ]
 
-    try:
-        resp = await llm.ainvoke(messages)
-        raw  = resp.content.strip()
-        if raw.startswith("```"):
-            raw = raw.strip("`").removeprefix("json").strip()
-        qs   = json.loads(raw)
-        state.quiz_questions = [QuizQuestion(**q) for q in qs[:n_questions]]
-    except Exception as e:
-        log.warning("Quiz generator failed: %s — using fallback questions", e)
+    # Try the fast model, then retry once with the main model before falling back.
+    for attempt, fast in enumerate((True, False), start=1):
+        try:
+            resp = await get_llm(fast=fast).ainvoke(messages)
+            qs   = parse_llm_json(resp.content, expect=list)
+            questions = [QuizQuestion(**q) for q in qs[:n_questions]
+                         if isinstance(q, dict) and 0 <= int(q.get("correct", -1)) < len(q.get("opts", []))]
+            if not questions:
+                raise ValueError("no valid questions in reply")
+            state.quiz_questions = questions
+            break
+        except Exception as e:
+            log.warning("Quiz generator attempt %d failed: %s", attempt, e)
+    else:
         if not avoid_questions:
+            log.warning("Quiz generator using fallback questions for topic=%r", topic)
             state.quiz_questions = FALLBACK_QUESTIONS[:n_questions]
 
     state.agent_statuses["quiz"] = "done"
@@ -214,9 +221,6 @@ async def analyse_weak_spots(
     ]
     try:
         resp = await llm.ainvoke(messages)
-        raw = resp.content.strip()
-        if raw.startswith("```"):
-            raw = raw.strip("`").removeprefix("json").strip()
-        return json.loads(raw)
+        return parse_llm_json(resp.content, expect=dict)
     except Exception:
         return {"weak_concepts": [], "strong_concepts": [], "advice": "Review the incorrect questions above before proceeding."}

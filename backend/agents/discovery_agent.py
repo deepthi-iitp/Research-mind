@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.llm_json import parse_llm_json
 from core.clients import get_llm
 from core.config import get_settings
 from core.models import Paper, SessionState
@@ -176,7 +177,7 @@ async def run_discovery_agent(state: SessionState) -> SessionState:
     ]
     try:
         resp = await llm.ainvoke(messages)
-        sequence = json.loads(resp.content.strip())
+        sequence = parse_llm_json(resp.content, expect=list)
     except Exception as e:
         log.warning("GPT sequencing failed: %s — using citation-count order", e)
         sequence = [

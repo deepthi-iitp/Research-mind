@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.llm_json import parse_llm_json
 from core.clients import get_llm
 from core.models import SessionState, GraphNode, KnowledgeGraph
 
@@ -81,8 +82,8 @@ async def run_diagnostic_agent(state: SessionState, diagnostic_answers: list[int
     raw = response.content.strip()
 
     try:
-        profile = json.loads(raw)
-    except json.JSONDecodeError:
+        profile = parse_llm_json(raw, expect=dict)
+    except ValueError:
         # Fallback default profile
         profile = {
             "level": "intermediate",

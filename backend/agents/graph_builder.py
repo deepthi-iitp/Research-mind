@@ -9,6 +9,7 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from core.llm_json import parse_llm_json
 from core.clients import get_llm
 from core.models import GraphNode, KnowledgeGraph, SessionState
 
@@ -81,7 +82,7 @@ async def run_graph_builder(state: SessionState) -> SessionState:
 
     try:
         resp  = await llm.ainvoke(messages)
-        nodes_raw = json.loads(resp.content.strip())
+        nodes_raw = parse_llm_json(resp.content, expect=list)
         nodes = [GraphNode(**n) for n in nodes_raw]
     except Exception as e:
         log.warning("Graph builder LLM failed: %s — using default graph", e)
